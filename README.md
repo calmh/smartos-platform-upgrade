@@ -59,3 +59,7 @@ Checking current boot device... using /dev/dsk/c1t0d0p1, mounted, OK
 Downloading latest platform...
 ```
 
+License
+-------
+
+MIT
