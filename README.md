@@ -11,22 +11,27 @@ Drop the script in `/opt/local/bin` on the GZ.
 Usage
 -----
 
-Run the script. It'll find the USB stick, download the latest platform from
-Joyent, do the upgrade and report its status. The download and update platform
-stages will probably take a few minutes each.
+Run the script. It'll find the USB stick, download the latest platform
+from Joyent, do the upgrade and report its status. The download and
+update platform stages will probably take a few minutes each. Kernel and
+boot archive checksums are verified to make sure the files can be read
+correctly from the USB stick.
 
 ```
 [root@00-25-90-7d-03-8b ~]# platform-upgrade
 Checking current boot device... detected /dev/dsk/c0t0d0p1, mounted, OK
 Downloading latest platform... OK
 Verifying checksum... OK
-Extracting platform... OK
+Extracting latest platform... OK
 Updating platform on boot device... OK
-Activating new platform on boot device... OK
+Remounting boot device...  OK
+Verifying kernel checksum on boot device... OK
+Verifying boot_archive checksum on boot device... OK
+Activating new platform on /dev/dsk/c0t0d0p1... OK
 
 Boot device upgraded. To do:
 
- 1) Sanity check the contents of /tmp/tmp.KCaawL/usb
+ 1) Sanity check the contents of /tmp/tmp.Tsas6L/usb
  2) umount /dev/dsk/c0t0d0p1
  3) reboot
 [root@00-25-90-7d-03-8b ~]# 

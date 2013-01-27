@@ -64,6 +64,34 @@ else
         echo " OK"
 fi
 
+echo -n "Remounting boot device..."
+umount $USB 2>/dev/null
+if ( ! mount -F pcfs -o foldcase $USB $TMP/usb ) ; then
+        echo " failed"
+        exit -1
+else
+        echo " OK"
+fi
+
+echo -n "Verifying kernel checksum on boot device..."
+openssl dgst -sha1 platform-20*/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.expected
+openssl dgst -sha1 usb/platform.new/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.actual
+if ( ! cmp -s kernel.actual kernel.expected ) ; then
+        echo " failed"
+        exit -1
+else
+        echo " OK"
+fi
+
+echo -n "Verifying boot_archive checksum on boot device..."
+openssl dgst -sha1 usb/platform.new/i86pc/amd64/boot_archive | cut -d ' ' -f 2 > boot_archive.actual
+if ( ! cmp -s boot_archive.actual usb/platform.new/i86pc/amd64/boot_archive.hash ) ; then
+        echo " failed"
+        exit -1
+else
+        echo " OK"
+fi
+
 echo -n "Activating new platform on $USB..."
 rm -rf usb/platform.old
 if ( ! ( mv usb/platform usb/platform.old && mv usb/platform.new usb/platform ) ) ; then
