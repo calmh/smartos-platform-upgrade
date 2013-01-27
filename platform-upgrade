@@ -16,16 +16,16 @@ umount $USB 2>/dev/null
 mkdir usb
 if ( ! mount -F pcfs -o foldcase $USB $TMP/usb ) ; then
         echo ", mount failed"
-	exit -1
+        exit -1
 else
-	echo -n ", mounted"
+        echo -n ", mounted"
 fi
 
 if [ ! -d usb/platform ] ; then
         echo ", missing platform dir"
         exit -1
 else
-	echo ", OK"
+        echo ", OK"
 fi     
        
 echo -n "Downloading latest platform..."
@@ -33,27 +33,27 @@ if ( !  curl -sk -o platform-latest.tgz https://download.joyent.com/pub/iso/plat
         echo " failed"
         exit -1
 else
-	echo " OK"
+        echo " OK"
 fi
        
 echo -n "Verifying checksum..."
 curl -sk https://download.joyent.com/pub/iso/md5sums.txt \
-	| grep platform-latest.tgz \
-	| awk '{print $1}' > expected.md5
+        | grep platform-latest.tgz \
+        | awk '{print $1}' > expected.md5
 openssl md5 platform-latest.tgz | awk '{print $2}' > actual.md5
 if ( ! cmp -s actual.md5 expected.md5 ) ; then
         echo " failed"
         exit -1
 else
-	echo " OK"
+        echo " OK"
 fi
 
-echo -n "Extracting platform..."
+echo -n "Extracting latest platform..."
 if ( ! gtar zxf platform-latest.tgz ) ; then
         echo " failed"
         exit -1
 else
-	echo " OK"
+        echo " OK"
 fi
 
 echo -n "Updating platform on boot device..."
@@ -61,17 +61,16 @@ if ( ! rsync -a platform-20*/ usb/platform.new/ ) ; then
         echo " failed"
         exit -1
 else
-	echo " OK"
+        echo " OK"
 fi
 
-echo -n "Activating new platform on boot device..."
+echo -n "Activating new platform on $USB..."
 rm -rf usb/platform.old
 if ( ! ( mv usb/platform usb/platform.old && mv usb/platform.new usb/platform ) ) ; then
-	echo " failed"
-	echo " *** Your boot device might now be in an inconsistent state ***"
-	exit -1
+        echo " failed"
+        exit -1
 else
-	echo " OK"
+        echo " OK"
 fi
 
 echo
