@@ -6,7 +6,8 @@ A script to simplify upgrades of USB booted SmartOS installations.
 Installation
 ------------
 
-Drop the script in `/opt/local/bin` on the GZ.
+Drop the script in `/opt/local/bin` on the GZ. Edit it to select the
+desired mirror/download site at the top.
 
 Usage
 -----

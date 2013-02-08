@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# Select the official site or any of the mirrors by commenting out the correct line
+
+# MIRROR=https://download.joyent.com/pub/iso/
+MIRROR=http://smartos.nym.se/
        
 TMP=$(mktemp -d)
 cd $TMP || exit -1
@@ -29,7 +34,7 @@ else
 fi     
        
 echo -n "Downloading latest platform..."
-if ( !  curl -sk -o platform-latest.tgz https://download.joyent.com/pub/iso/platform-latest.tgz ) ; then
+if ( !  curl -sk -o platform-latest.tgz $MIRROR/platform-latest.tgz ) ; then
         echo " failed"
         exit -1
 else
@@ -37,7 +42,7 @@ else
 fi
        
 echo -n "Verifying checksum..."
-curl -sk https://download.joyent.com/pub/iso/md5sums.txt \
+curl -sk $MIRROR/md5sums.txt \
         | grep platform-latest.tgz \
         | awk '{print $1}' > expected.md5
 openssl md5 platform-latest.tgz | awk '{print $2}' > actual.md5
