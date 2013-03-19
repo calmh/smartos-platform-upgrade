@@ -6,27 +6,27 @@
 MIRROR=http://smartos.nym.se/
        
 TMP=$(mktemp -d)
-cd $TMP || exit -1
+cd "$TMP" || exit -1
 
 echo -n "Checking current boot device..."
-if [ "x$1" == "x" ] ; then
+if [[ -z $1 ]] ; then
         USB=$(rmformat | grep Logical | awk '{print $4}' | sed 's/rdsk/dsk/;s/p0$/p1/')
         echo -n " detected $USB"
 else   
-        USB=$1
+        USB="$1"
         echo -n " using $USB"
 fi     
 
-umount $USB 2>/dev/null
+umount "$USB" 2>/dev/null
 mkdir usb
-if ( ! mount -F pcfs -o foldcase $USB $TMP/usb ) ; then
+if ! mount -F pcfs -o foldcase "$USB" "$TMP/usb" ; then
         echo ", mount failed"
         exit -1
 else
         echo -n ", mounted"
 fi
 
-if [ ! -d usb/platform ] ; then
+if [[ ! -d usb/platform ]] ; then
         echo ", missing platform dir"
         exit -1
 else
@@ -34,7 +34,7 @@ else
 fi     
        
 echo -n "Downloading latest platform..."
-if ( !  curl -sk -o platform-latest.tgz $MIRROR/platform-latest.tgz ) ; then
+if ! curl -sk -o platform-latest.tgz "$MIRROR/platform-latest.tgz" ; then
         echo " failed"
         exit -1
 else
@@ -42,11 +42,11 @@ else
 fi
        
 echo -n "Verifying checksum..."
-curl -sk $MIRROR/md5sums.txt \
+curl -sk "$MIRROR/md5sums.txt" \
         | grep platform-latest.tgz \
         | awk '{print $1}' > expected.md5
 openssl md5 platform-latest.tgz | awk '{print $2}' > actual.md5
-if ( ! cmp -s actual.md5 expected.md5 ) ; then
+if ! cmp -s actual.md5 expected.md5 ; then
         echo " failed"
         exit -1
 else
@@ -54,7 +54,7 @@ else
 fi
 
 echo -n "Extracting latest platform..."
-if ( ! gtar zxf platform-latest.tgz ) ; then
+if ! gtar zxf platform-latest.tgz ; then
         echo " failed"
         exit -1
 else
@@ -62,7 +62,7 @@ else
 fi
 
 echo -n "Updating platform on boot device..."
-if ( ! rsync -a platform-20*/ usb/platform.new/ ) ; then
+if ! rsync -a platform-20*/ usb/platform.new/ ; then
         echo " failed"
         exit -1
 else
@@ -70,8 +70,8 @@ else
 fi
 
 echo -n "Remounting boot device..."
-umount $USB 2>/dev/null
-if ( ! mount -F pcfs -o foldcase $USB $TMP/usb ) ; then
+umount "$USB" 2>/dev/null
+if ! mount -F pcfs -o foldcase "$USB" "$TMP/usb" ; then
         echo " failed"
         exit -1
 else
@@ -81,7 +81,7 @@ fi
 echo -n "Verifying kernel checksum on boot device..."
 openssl dgst -sha1 platform-20*/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.expected
 openssl dgst -sha1 usb/platform.new/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.actual
-if ( ! cmp -s kernel.actual kernel.expected ) ; then
+if ! cmp -s kernel.actual kernel.expected ; then
         echo " failed"
         exit -1
 else
@@ -90,7 +90,7 @@ fi
 
 echo -n "Verifying boot_archive checksum on boot device..."
 openssl dgst -sha1 usb/platform.new/i86pc/amd64/boot_archive | cut -d ' ' -f 2 > boot_archive.actual
-if ( ! cmp -s boot_archive.actual usb/platform.new/i86pc/amd64/boot_archive.hash ) ; then
+if ! cmp -s boot_archive.actual usb/platform.new/i86pc/amd64/boot_archive.hash ; then
         echo " failed"
         exit -1
 else
@@ -99,7 +99,7 @@ fi
 
 echo -n "Activating new platform on $USB..."
 rm -rf usb/platform.old
-if ( ! ( mv usb/platform usb/platform.old && mv usb/platform.new usb/platform ) ) ; then
+if ! ( mv usb/platform usb/platform.old && mv usb/platform.new usb/platform ) ; then
         echo " failed"
         exit -1
 else
