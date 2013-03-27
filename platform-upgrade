@@ -98,8 +98,9 @@ else
 fi
 
 echo -n "Activating new platform on $USB..."
-rm -rf usb/platform.old
-if ! ( mv usb/platform usb/platform.old && mv usb/platform.new usb/platform ) ; then
+rm -rf usb/old
+mkdir usb/old
+if ! ( mv usb/platform usb/old && mv usb/platform.new usb/platform ) ; then
         echo " failed"
         exit -1
 else
