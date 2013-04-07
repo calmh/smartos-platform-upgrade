@@ -33,7 +33,7 @@ else
         echo ", OK"
 fi     
        
-echo -n "Downloading latest platform..."
+echo -n "Downloading latest platform ($MIRROR)..."
 if ! curl -sk -o platform-latest.tgz "$MIRROR/platform-latest.tgz" ; then
         echo " failed"
         exit -1
