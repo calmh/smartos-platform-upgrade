@@ -1,25 +1,28 @@
 #!/bin/bash
 
-# Select the official site or any of the mirrors by commenting out the correct line
-
-# MIRROR=https://download.joyent.com/pub/iso/
-MIRROR=http://smartos.nym.se/
+host=https://us-east.manta.joyent.com
+latest_path=$(curl -sk "$host/Joyent_Dev/public/SmartOS/latest")
+version="${latest_path##*/}"
+platform_file="platform-$version.tgz"
+platform_dir="platform-$version"
+platform_url="$host$latest_path/$platform_file"
+md5sums_url="$host$latest_path/md5sums.txt"
        
-TMP=$(mktemp -d)
-cd "$TMP" || exit -1
+tmp=$(mktemp -d)
+cd "$tmp" || exit -1
 
 echo -n "Checking current boot device..."
 if [[ -z $1 ]] ; then
-        USB=$(rmformat | grep Logical | awk '{print $4}' | sed 's/rdsk/dsk/;s/p0$/p1/')
-        echo -n " detected $USB"
+        usb=$(rmformat | grep Logical | awk '{print $4}' | sed 's/rdsk/dsk/;s/p0$/p1/')
+        echo -n " detected $usb"
 else   
-        USB="$1"
-        echo -n " using $USB"
+        usb="$1"
+        echo -n " using $usb"
 fi     
 
-umount "$USB" 2>/dev/null
+umount "$usb" 2>/dev/null
 mkdir usb
-if ! mount -F pcfs -o foldcase "$USB" "$TMP/usb" ; then
+if ! mount -F pcfs -o foldcase "$usb" "$tmp/usb" ; then
         echo ", mount failed"
         exit -1
 else
@@ -33,8 +36,8 @@ else
         echo ", OK"
 fi     
        
-echo -n "Downloading latest platform ($MIRROR)..."
-if ! curl -sk -o platform-latest.tgz "$MIRROR/platform-latest.tgz" ; then
+echo -n "Downloading latest platform ($platform_file)..."
+if ! curl -sk -o "$platform_file" "$platform_url" ; then
         echo " failed"
         exit -1
 else
@@ -42,10 +45,10 @@ else
 fi
        
 echo -n "Verifying checksum..."
-curl -sk "$MIRROR/md5sums.txt" \
-        | grep platform-latest.tgz \
+curl -sk "$md5sums_url" \
+        | grep "$platform_file" \
         | awk '{print $1}' > expected.md5
-openssl md5 platform-latest.tgz | awk '{print $2}' > actual.md5
+openssl md5 "$platform_file" | awk '{print $2}' > actual.md5
 if ! cmp -s actual.md5 expected.md5 ; then
         echo " failed"
         exit -1
@@ -54,7 +57,7 @@ else
 fi
 
 echo -n "Extracting latest platform..."
-if ! gtar zxf platform-latest.tgz ; then
+if ! gtar zxf "$platform_file" ; then
         echo " failed"
         exit -1
 else
@@ -62,7 +65,7 @@ else
 fi
 
 echo -n "Updating platform on boot device..."
-if ! rsync -a platform-20*/ usb/platform.new/ ; then
+if ! rsync -a "$platform_dir/" usb/platform.new/ ; then
         echo " failed"
         exit -1
 else
@@ -70,8 +73,8 @@ else
 fi
 
 echo -n "Remounting boot device..."
-umount "$USB" 2>/dev/null
-if ! mount -F pcfs -o foldcase "$USB" "$TMP/usb" ; then
+umount "$usb" 2>/dev/null
+if ! mount -F pcfs -o foldcase "$usb" "$tmp/usb" ; then
         echo " failed"
         exit -1
 else
@@ -79,7 +82,7 @@ else
 fi
 
 echo -n "Verifying kernel checksum on boot device..."
-openssl dgst -sha1 platform-20*/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.expected
+openssl dgst -sha1 "$platform_dir"/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.expected
 openssl dgst -sha1 usb/platform.new/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.actual
 if ! cmp -s kernel.actual kernel.expected ; then
         echo " failed"
@@ -97,7 +100,7 @@ else
         echo " OK"
 fi
 
-echo -n "Activating new platform on $USB..."
+echo -n "Activating new platform on $usb..."
 rm -rf usb/old
 mkdir usb/old
 if ! ( mv usb/platform usb/old && mv usb/platform.new usb/platform ) ; then
@@ -110,7 +113,6 @@ fi
 echo
 echo "Boot device upgraded. To do:"
 echo
-echo " 1) Sanity check the contents of $TMP/usb"
-echo " 2) umount $USB"
+echo " 1) Sanity check the contents of $tmp/usb"
+echo " 2) umount $usb"
 echo " 3) reboot"
-
