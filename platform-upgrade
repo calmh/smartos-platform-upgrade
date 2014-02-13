@@ -13,14 +13,15 @@ cd "$tmp" || exit -1
 
 echo -n "Checking current boot device..."
 if [[ -z $1 ]] ; then
-        usb=( $(disklist -r | tr ' ' '\n' | awk '{printf "/dev/dsk/%sp1 ", $1}') )
-        echo -n " detected ${usb[@]}"
-        usb_count=(${usb[@]})
-        if [ ${#usb_count[@]} -gt 1 ]; then
+        removables=($(disklist -r))
+        echo -n " detected ${removables[@]}"
+        if [[ ${#removables[@]} -gt 1 ]]; then
                   echo
-                  echo "Warning: more than one removable device detected."
+                  echo "Error: more than one removable device detected."
+		  echo "Specify correct device on the command line."
                   exit -1
         fi
+	usb="/dev/dsk/${removables[0]}p1"
 else   
         usb="$1"
         echo -n " using $usb"
