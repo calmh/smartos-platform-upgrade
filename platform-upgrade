@@ -71,6 +71,14 @@ else
         echo " OK"
 fi
 
+echo -n "Marking release version..."
+if ! echo $version > $platform_dir/VERSION ; then
+        echo " failed"
+        exit -1
+else
+        echo " OK"
+fi
+
 echo -n "Updating platform on boot device..."
 if ! rsync -a "$platform_dir/" usb/platform.new/ ; then
         echo " failed"
