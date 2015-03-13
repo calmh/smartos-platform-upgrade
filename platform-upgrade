@@ -11,38 +11,6 @@ md5sums_url="$host$latest_path/md5sums.txt"
 tmp=$(mktemp -d)
 cd "$tmp" || exit -1
 
-echo -n "Checking current boot device..."
-if [[ -z $1 ]] ; then
-        removables=($(disklist -r))
-        echo -n " detected ${removables[@]}"
-        if [[ ${#removables[@]} -gt 1 ]]; then
-                  echo
-                  echo "Error: more than one removable device detected."
-		  echo "Specify correct device on the command line."
-                  exit -1
-        fi
-	usb="/dev/dsk/${removables[0]}p1"
-else
-        usb="$1"
-        echo -n " using $usb"
-fi
-
-umount "$usb" 2>/dev/null
-mkdir usb
-if ! mount -F pcfs -o foldcase "$usb" "$tmp/usb" ; then
-        echo ", mount failed"
-        exit -1
-else
-        echo -n ", mounted"
-fi
-
-if [[ ! -d usb/platform ]] ; then
-        echo ", missing platform dir"
-        exit -1
-else
-        echo ", OK"
-fi
-
 echo -n "Downloading latest platform ($platform_file)..."
 if ! curl -sk -o "$platform_file" "$platform_url" ; then
         echo " failed"
@@ -77,6 +45,38 @@ if ! echo $version > $platform_dir/VERSION ; then
         exit -1
 else
         echo " OK"
+fi
+
+echo -n "Checking current boot device..."
+if [[ -z $1 ]] ; then
+        removables=($(disklist -r))
+        echo -n " detected ${removables[@]}"
+        if [[ ${#removables[@]} -gt 1 ]]; then
+                  echo
+                  echo "Error: more than one removable device detected."
+                  echo "Specify correct device on the command line."
+                  exit -1
+        fi
+        usb="/dev/dsk/${removables[0]}p1"
+else
+        usb="$1"
+        echo -n " using $usb"
+fi
+
+umount "$usb" 2>/dev/null
+mkdir usb
+if ! mount -F pcfs -o foldcase "$usb" "$tmp/usb" ; then
+        echo ", mount failed"
+        exit -1
+else
+        echo -n ", mounted"
+fi
+
+if [[ ! -d usb/platform ]] ; then
+        echo ", missing platform dir"
+        exit -1
+else
+        echo ", OK"
 fi
 
 echo -n "Updating platform on boot device..."
