@@ -17,7 +17,7 @@ done
 
 IFS=_ read brand kernel < <(uname -v)
 if [[ $kernel == $version ]]; then
-	echo "already on latest version: $kernel"
+	echo "Already on latest version ($kernel)."
 	$force || exit -1
 fi
 
