@@ -8,17 +8,24 @@ platform_dir="platform-$version"
 platform_url="$host$latest_path/$platform_file"
 md5sums_url="$host$latest_path/md5sums.txt"
 
-force=false
-while getopts 'f' option; do
-	case "$option" in
-		f) force=true;;
-	esac
+force="false"
+while getopts :f option; do
+    case "$option" in
+        f)
+            force="true"
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            exit -1
+            ;;
+    esac
 done
+shift $((OPTIND-1))
 
 IFS=_ read brand kernel < <(uname -v)
 if [[ $kernel == $version ]]; then
-	echo "Already on latest version ($kernel)."
-	$force || exit -1
+    echo "Already on latest version ($kernel)."
+    $force || exit -1
 fi
 
 tmp=$(mktemp -d)
