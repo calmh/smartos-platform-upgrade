@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# https://github.com/calmh/smartos-platform-upgrade
+# Copyright (c) 2012-2016 Jakob Borg & Contributors
+# Distributed under the MIT License
+
 host=https://us-east.manta.joyent.com
 latest_path=$(curl -sk "$host/Joyent_Dev/public/SmartOS/latest")
 version="${latest_path##*/}"
