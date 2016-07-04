@@ -73,11 +73,12 @@ fi
 
 echo -n "Checking current boot device..."
 if [[ -z $1 ]] ; then
-        removables=($(disklist -r))
+        removables=($(diskinfo | awk '/^USB/ { print $2 }'))
         echo -n " detected ${removables[@]}"
         if [[ ${#removables[@]} -gt 1 ]]; then
                   echo
                   echo "Error: more than one removable device detected."
+                  diskinfo | awk 'NR == 1 || /^USB/ { print }'
                   echo "Specify correct device on the command line."
                   exit -1
         fi
