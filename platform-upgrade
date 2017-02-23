@@ -9,8 +9,11 @@
 # SHA-1=91:C6:D6:EE:3E:8A:C8:63:84:E5:48:C2:99:29:5C:75:6C:81:7B:81
 # SHA-256=8D:72:2F:81:A9:C1:13:C0:79:1D:F1:36:A2:96:6D:B2:6C:95:0A:97:1D:B4:6B:41:99:F4:EA:54:B7:8B:FB:9F
 cert_file=$(mktemp)
-(
-cat <<'EOF'
+function cleanup {
+        rm "$cert_file"
+}
+trap cleanup EXIT
+cat >"$cert_file" <<EOF
 -----BEGIN CERTIFICATE-----
 MIIEIDCCAwigAwIBAgIQNE7VVyDV7exJ9C/ON9srbTANBgkqhkiG9w0BAQUFADCB
 qTELMAkGA1UEBhMCVVMxFTATBgNVBAoTDHRoYXd0ZSwgSW5jLjEoMCYGA1UECxMf
@@ -37,11 +40,13 @@ LHbTY5xZ3Y+m4Q6gLkH3LpVHz7z9M/P2C2F+fpErgUfCJzDupxBdN49cOSvkBPB7
 jVaMaA==
 -----END CERTIFICATE-----
 EOF
-) > $cert_file
+
+function _curl {
+        curl -s --cacert "$cert_file" $@
+}
 
 host=https://us-east.manta.joyent.com
-curl="curl -s --cacert $cert_file"
-latest_path=$($curl "$host/Joyent_Dev/public/SmartOS/latest")
+latest_path=$(_curl "$host/Joyent_Dev/public/SmartOS/latest")
 version="${latest_path##*/}"
 platform_file="platform-$version.tgz"
 platform_dir="platform-$version"
@@ -56,7 +61,6 @@ while getopts :f option; do
             ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
-            rm $cert_file
             exit -1
             ;;
     esac
@@ -66,27 +70,25 @@ shift $((OPTIND-1))
 IFS=_ read brand kernel < <(uname -v)
 if [[ $kernel == $version ]]; then
     echo "Already on latest version ($kernel)."
-    $force || (rm $cert_file && exit -1)
+    $force || exit -1
 fi
 
 tmp=$(mktemp -d)
-cd "$tmp" || (rm $cert_file && exit -1)
+cd "$tmp" || exit -1
 
 echo -n "Downloading latest platform ($platform_file)..."
-if ! $curl -o "$platform_file" "$platform_url" ; then
+if ! _curl -o "$platform_file" "$platform_url" ; then
         echo " failed"
-        rm $cert_file
         exit -1
 else
         echo " OK"
 fi
 
 echo -n "Verifying checksum..."
-$curl "$md5sums_url" \
+_curl "$md5sums_url" \
         | grep "$platform_file" \
         | awk '{print $1}' > expected.md5
 openssl md5 "$platform_file" | awk '{print $2}' > actual.md5
-rm $cert_file # Unnecessary beyond this point
 if ! cmp -s actual.md5 expected.md5 ; then
         echo " failed"
         exit -1
