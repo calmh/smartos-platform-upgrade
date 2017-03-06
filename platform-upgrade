@@ -48,6 +48,13 @@ function _curl {
 host=https://us-east.manta.joyent.com
 latest_path=$(_curl "$host/Joyent_Dev/public/SmartOS/latest")
 version="${latest_path##*/}"
+
+IFS=_ read brand kernel < <(uname -v)
+if [[ $kernel == $version ]]; then
+	read -p "already on latest version $kernel - continue? [yN]: " ans
+	[[ $ans == 'y' ]] || exit -1
+fi
+
 platform_file="platform-$version.tgz"
 platform_dir="platform-$version"
 platform_url="$host$latest_path/$platform_file"
