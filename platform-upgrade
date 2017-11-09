@@ -114,7 +114,10 @@ fi
 
 echo -n "Checking current boot device..."
 if [[ -z $1 ]] ; then
-        removables=($(diskinfo | awk '/^USB/ { print $2 }'))
+        removables=($(diskinfo -pH | awk '/^USB/ { print $2 }'))
+        if [[ ${#removables[@]} -eq 0 ]]; then
+                 removables=($(diskinfo -pH | awk '/^USB|^SCSI.*[0-9]+[ \s\t]+yes/ { print $2 }'))
+        fi
         echo -n " detected ${removables[@]}"
         if [[ ${#removables[@]} -gt 1 ]]; then
                   echo
