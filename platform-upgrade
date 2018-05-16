@@ -44,28 +44,62 @@ EOF
 function _curl {
         curl -s --cacert "$cert_file" $@
 }
+function usage() {
+    cat <<- "USAGE"
+$ platform-upgrade [-u URL -s MD5SUM_URL] [-f]
 
-host=https://us-east.manta.joyent.com
-latest_path=$(_curl "$host/Joyent_Dev/public/SmartOS/latest")
-version="${latest_path##*/}"
-platform_file="platform-$version.tgz"
-platform_dir="platform-$version"
-platform_url="$host$latest_path/$platform_file"
-md5sums_url="$host$latest_path/md5sums.txt"
+OPTIONS:
+  -u URL        : Remote/local url of platform-version.tgz file
+  -s MD5SUM_URL : Remote/local url of md5 checksum file
+  -f            : Force installation if version is already present
+
+EXAMPLE:
+  # Use default Joyent URL for latest platform image
+  platform-upgrade
+  # Use local platform and checksum file
+  platform-upgrade -u file:///tmp/platform-20180510T153535Z.tgz -s file:///tmp/md5sum.txt
+USAGE
+}
 
 force="false"
-while getopts :f option; do
+while getopts :fu:s: option; do
     case "$option" in
+        u)
+            platform_url="$OPTARG"
+            ;;
+        s)
+            md5sums_url="$OPTARG"
+            ;;
         f)
             force="true"
             ;;
         \?)
-            echo "Invalid option: -$OPTARG" >&2
+            usage
             exit -1
             ;;
     esac
 done
 shift $((OPTIND-1))
+
+if [[ -n $platform_url ]] && [[ ! -n $md5sums_url ]]; then
+	usage
+	exit -1
+fi
+
+if [[ ! -n "${platform_url}" ]]; then
+    host=https://us-east.manta.joyent.com
+    latest_path="${host}$(_curl "$host/Joyent_Dev/public/SmartOS/latest")"
+    version="$(expr "$latest_path" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
+    if [[ ! -n "${md5sums_url}" ]]; then
+        md5sums_url="$latest_path/md5sums.txt"
+    fi
+    platform_url="$latest_path/$platform_file"
+else
+    version="$(expr "$platform_url" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
+fi
+
+platform_file="platform-$version.tgz"
+platform_dir="platform-$version"
 
 IFS=_ read brand kernel < <(uname -v)
 if [[ $kernel == $version ]]; then
