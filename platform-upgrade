@@ -93,7 +93,7 @@ if [[ ! -n "${platform_url}" ]]; then
     if [[ ! -n "${md5sums_url}" ]]; then
         md5sums_url="$latest_path/md5sums.txt"
     fi
-    platform_url="$latest_path/$platform_file"
+    platform_url="$latest_path/platform-$version.tgz"
 else
     version="$(expr "$platform_url" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
 fi
