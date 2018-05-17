@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # https://github.com/calmh/smartos-platform-upgrade
 # Copyright (c) 2012-2016 Jakob Borg & Contributors
 # Distributed under the MIT License
@@ -8,12 +10,31 @@
 # Thawte Primary Root CA.
 # SHA-1=91:C6:D6:EE:3E:8A:C8:63:84:E5:48:C2:99:29:5C:75:6C:81:7B:81
 # SHA-256=8D:72:2F:81:A9:C1:13:C0:79:1D:F1:36:A2:96:6D:B2:6C:95:0A:97:1D:B4:6B:41:99:F4:EA:54:B7:8B:FB:9F
-cert_file=$(mktemp)
-function cleanup {
-        rm "$cert_file"
+
+main() {
+  create_cert_file
+  set_exit_trap
+  process_cmd_line "$@"
+  initialize
+  check_kernel_version
+  create_temp_dir
+  download_latest_platform
+  verify_platform_checksum
+  extract_platform
+  mark_release_version
+  check_boot_device
+  mount_boot_device
+  update_platform
+  remount_boot_device
+  verify_kernel_checksum
+  verify_boot_archive_checksum
+  activate_platform
+  display_completion_message
 }
-trap cleanup EXIT
-cat >"$cert_file" <<EOF
+
+create_cert_file() {
+  cert_file=$(mktemp)
+  cat >"$cert_file" <<EOF
 -----BEGIN CERTIFICATE-----
 MIIEIDCCAwigAwIBAgIQNE7VVyDV7exJ9C/ON9srbTANBgkqhkiG9w0BAQUFADCB
 qTELMAkGA1UEBhMCVVMxFTATBgNVBAoTDHRoYXd0ZSwgSW5jLjEoMCYGA1UECxMf
@@ -40,12 +61,28 @@ LHbTY5xZ3Y+m4Q6gLkH3LpVHz7z9M/P2C2F+fpErgUfCJzDupxBdN49cOSvkBPB7
 jVaMaA==
 -----END CERTIFICATE-----
 EOF
-
-function _curl {
-        curl -s --cacert "$cert_file" $@
 }
-function usage() {
-    cat <<- "USAGE"
+
+cleanup() {
+  rm "$cert_file"
+}
+
+set_exit_trap() {
+  trap cleanup EXIT
+}
+
+_curl() {
+  curl -s --cacert "$cert_file" "$@"
+}
+
+fail() {
+  local msg=${1:- failed}
+  echo "$msg" >&2
+  exit 1
+}
+
+usage() {
+  cat <<- "USAGE"
 $ platform-upgrade [-u URL -s MD5SUM_URL] [-f]
 
 OPTIONS:
@@ -59,178 +96,170 @@ EXAMPLE:
   # Use local platform and checksum file
   platform-upgrade -u file:///tmp/platform-20180510T153535Z.tgz -s file:///tmp/md5sum.txt
 USAGE
+  exit -1
 }
 
-force="false"
-while getopts :fu:s: option; do
+process_cmd_line() {
+  force="false"
+  local OPTIND option
+  while getopts :fu:s: option ; do
     case "$option" in
-        u)
-            platform_url="$OPTARG"
-            ;;
-        s)
-            md5sums_url="$OPTARG"
-            ;;
-        f)
-            force="true"
-            ;;
-        \?)
-            usage
-            exit -1
-            ;;
+      u)
+        platform_url="$OPTARG"
+        ;;
+      s)
+        md5sums_url="$OPTARG"
+        ;;      
+      f)
+        force="true"
+        ;;
+      \?)
+        usage
+        ;;
     esac
-done
-shift $((OPTIND-1))
+  done
+  shift $((OPTIND-1))
 
-if [[ -n $platform_url ]] && [[ ! -n $md5sums_url ]]; then
-	usage
-	exit -1
-fi
+  boot_device="${1:-}"
+}
 
-if [[ ! -n $platform_url ]]; then
+initialize() {
+  : "${platform_url:=}"
+  : "${md5sums_url:=}"
+  if [[ -n $platform_url ]] && [[ -z $md5sums_url ]]; then
+   	usage
+  fi
+  if [[ -z $platform_url ]]; then
+    local host latest_path
     host=https://us-east.manta.joyent.com
     latest_path="${host}$(_curl "$host/Joyent_Dev/public/SmartOS/latest")"
     version="$(expr "$latest_path" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
     platform_url="$latest_path/platform-$version.tgz"
-    if [[ ! -n $md5sums_url ]]; then
-        md5sums_url="$latest_path/md5sums.txt"
-    fi
-else
+    [[ -z $md5sums_url ]] && md5sums_url="$latest_path/md5sums.txt"
+  else
     version="$(expr "$platform_url" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
-fi
+  fi
+  platform_file="platform-$version.tgz"
+  platform_dir="platform-$version"
+}
 
-platform_file="platform-$version.tgz"
-platform_dir="platform-$version"
-
-IFS=_ read brand kernel < <(uname -v)
-if [[ $kernel == $version ]]; then
+check_kernel_version() {
+  IFS=_ read -r _ kernel < <(uname -v)
+  if [[ $kernel == "$version" ]]; then
     echo "Already on latest version ($kernel)."
-    $force || exit -1
-fi
+    $force || fail "Exiting"
+  fi
+}
 
-tmp=$(mktemp -d)
-cd "$tmp" || exit -1
+create_temp_dir() {
+  tmp=$(mktemp -d)
+  cd "$tmp"
+}
 
-echo -n "Downloading latest platform ($platform_file)..."
-if ! _curl -o "$platform_file" "$platform_url" ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+download_latest_platform() {
+  echo -n "Downloading latest platform ($platform_file)..."
+  _curl -o "$platform_file" "$platform_url"
+  echo " OK"
+}
 
-echo -n "Verifying checksum..."
-_curl "$md5sums_url" \
-        | grep "$platform_file" \
-        | awk '{print $1}' > expected.md5
-openssl md5 "$platform_file" | awk '{print $2}' > actual.md5
-if ! cmp -s actual.md5 expected.md5 ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+verify_platform_checksum() {
+  echo -n "Verifying checksum..."
+  local expected_md5 actual_md5
+  expected_md5=$(awk "/$platform_file/ {print \$1}" < <(_curl "$md5sums_url"))
+  actual_md5=$(awk '{print $2}' < <(openssl md5 "$platform_file"))
+  [[ $actual_md5 == "$expected_md5" ]] || fail
+  echo " OK"
+}
 
-echo -n "Extracting latest platform..."
-if ! gtar zxf "$platform_file" ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+extract_platform() {
+  echo -n "Extracting latest platform..."
+  gtar zxf "$platform_file"
+  echo " OK"
+}
 
-echo -n "Marking release version..."
-if ! echo $version > $platform_dir/VERSION ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+mark_release_version() {
+  echo -n "Marking release version..."
+  echo "$version" > "$platform_dir"/VERSION
+  echo " OK"
+}
 
-echo -n "Checking current boot device..."
-if [[ -z $1 ]] ; then
-        removables=($(diskinfo -pH | awk '/^USB/ { print $2 }'))
-        if [[ ${#removables[@]} -eq 0 ]]; then
-                 removables=($(diskinfo -pH | awk '/^USB|^SCSI.*[0-9]+[ \s\t]+yes/ { print $2 }'))
-        fi
-        echo -n " detected ${removables[@]}"
-        if [[ ${#removables[@]} -gt 1 ]]; then
-                  echo
-                  echo "Error: more than one removable device detected."
-                  diskinfo | awk 'NR == 1 || /^USB/ { print }'
-                  echo "Specify correct device on the command line."
-                  exit -1
-        fi
-        usb="/dev/dsk/${removables[0]}p1"
-else
-        usb="$1"
-        echo -n " using $usb"
-fi
+check_boot_device() {
+  echo -n "Checking current boot device..."
+  if [[ -z $boot_device ]] ; then
+    local removables
+    mapfile -t removables < <(awk '/^USB/ { print $2 }' < <(diskinfo -pH))
+    if [[ ${#removables[@]} -eq 0 ]]; then
+      mapfile -t removables < <(awk '/^USB|^SCSI.*[0-9]+[ \s\t]+yes/ { print $2 }' < <(diskinfo -pH))
+    fi
+    echo -n " detected ${removables[*]}"
+    if [[ ${#removables[@]} -gt 1 ]]; then
+      echo
+      echo "Error: more than one removable device detected."
+      awk 'NR == 1 || /^USB/ { print }' < <(diskinfo)
+      fail "Specify correct device on the command line."
+    fi
+    boot_device="/dev/dsk/${removables[0]}p1"
+  else
+    echo -n " using $boot_device"
+  fi
+}
 
-umount "$usb" 2>/dev/null
-mkdir usb
-if ! mount -F pcfs -o foldcase "$usb" "$tmp/usb" ; then
-        echo ", mount failed"
-        exit -1
-else
-        echo -n ", mounted"
-fi
+mount_boot_device() {
+  if grep "$boot_device" < <(mount -p) ; then
+    umount "$boot_device" || fail " failed to unmount $boot_device"
+  fi
+  mkdir usb
+  echo -n ", mounting"
+  mount -F pcfs -o foldcase "$boot_device" "$tmp/usb" || fail ", failed to mount $boot_device"
 
-if [[ ! -d usb/platform ]] ; then
-        echo ", missing platform dir"
-        exit -1
-else
-        echo ", OK"
-fi
+  [[ -d usb/platform ]] || fail ", missing platform dir"
+  echo ", OK"
+}
 
-echo -n "Updating platform on boot device..."
-if ! rsync -a "$platform_dir/" usb/platform.new/ ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+update_platform() {
+  echo -n "Updating platform on boot device..."
+  rsync -a "$platform_dir/" usb/platform.new/
+  echo " OK"
+}
 
-echo -n "Remounting boot device..."
-umount "$usb" 2>/dev/null
-if ! mount -F pcfs -o foldcase "$usb" "$tmp/usb" ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+remount_boot_device() {
+  echo -n "Remounting boot device..."
+  umount "$boot_device" 2>/dev/null
+  mount -F pcfs -o foldcase "$boot_device" "$tmp/usb"
+  echo " OK"
+}
 
-echo -n "Verifying kernel checksum on boot device..."
-openssl dgst -sha1 "$platform_dir"/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.expected
-openssl dgst -sha1 usb/platform.new/i86pc/kernel/amd64/unix | cut -d ' ' -f 2 > kernel.actual
-if ! cmp -s kernel.actual kernel.expected ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+verify_kernel_checksum() {
+  echo -n "Verifying kernel checksum on boot device..."
+  local kernel_expected kernel_actual
+  kernel_expected=$(cut -d ' ' -f 2 < <(openssl dgst -sha1 "$platform_dir"/i86pc/kernel/amd64/unix))
+  kernel_actual=$(cut -d ' ' -f 2 < <(openssl dgst -sha1 usb/platform.new/i86pc/kernel/amd64/unix))
+  [[ $kernel_actual == "$kernel_expected" ]] || fail
+  echo " OK"
+}
 
-echo -n "Verifying boot_archive checksum on boot device..."
-openssl dgst -sha1 usb/platform.new/i86pc/amd64/boot_archive | cut -d ' ' -f 2 > boot_archive.actual
-if ! cmp -s boot_archive.actual usb/platform.new/i86pc/amd64/boot_archive.hash ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+verify_boot_archive_checksum() {
+  echo -n "Verifying boot_archive checksum on boot device..."
+  openssl dgst -sha1 usb/platform.new/i86pc/amd64/boot_archive | cut -d ' ' -f 2 > boot_archive.actual
+  cmp -s boot_archive.actual usb/platform.new/i86pc/amd64/boot_archive.hash || fail
+  echo " OK"
+}
 
-echo -n "Activating new platform on $usb..."
-rm -rf usb/old
-mkdir usb/old
-if ! ( mv usb/platform usb/old && mv usb/platform.new usb/platform ) ; then
-        echo " failed"
-        exit -1
-else
-        echo " OK"
-fi
+activate_platform() {
+  echo -n "Activating new platform on $boot_device..."
+  rm -rf usb/old
+  mkdir usb/old
+  mv usb/platform usb/old && mv usb/platform.new usb/platform
+  echo " OK"
+}
 
-echo
-echo "Boot device upgraded. To do:"
-echo
-echo " 1) Sanity check the contents of $tmp/usb"
-echo " 2) umount $usb"
-echo " 3) reboot"
+display_completion_message() {
+  echo
+  echo "Boot device upgraded. To do:"
+  echo
+  echo " 1) Sanity check the contents of $tmp/usb"
+  echo " 2) umount $boot_device"
+  echo " 3) reboot"
+}
+
+main "$@"
