@@ -42,7 +42,7 @@ jVaMaA==
 EOF
 
 function _curl {
-        curl -s --cacert "$cert_file" $@
+        curl -s --cacert "$cert_file" "$@"
 }
 
 host=https://us-east.manta.joyent.com
@@ -67,8 +67,8 @@ while getopts :f option; do
 done
 shift $((OPTIND-1))
 
-IFS=_ read brand kernel < <(uname -v)
-if [[ $kernel == $version ]]; then
+IFS=_ read -r _ kernel < <(uname -v)
+if [[ $kernel == "$version" ]]; then
     echo "Already on latest version ($kernel)."
     $force || exit -1
 fi
@@ -105,7 +105,7 @@ else
 fi
 
 echo -n "Marking release version..."
-if ! echo $version > $platform_dir/VERSION ; then
+if ! echo "$version" > "$platform_dir"/VERSION ; then
         echo " failed"
         exit -1
 else
@@ -114,11 +114,11 @@ fi
 
 echo -n "Checking current boot device..."
 if [[ -z $1 ]] ; then
-        removables=($(diskinfo -pH | awk '/^USB/ { print $2 }'))
+        mapfile -t removables < <(diskinfo -pH | awk '/^USB/ { print $2 }')
         if [[ ${#removables[@]} -eq 0 ]]; then
-                 removables=($(diskinfo -pH | awk '/^USB|^SCSI.*[0-9]+[ \s\t]+yes/ { print $2 }'))
+                 mapfile -t removables < <(diskinfo -pH | awk '/^USB|^SCSI.*[0-9]+[ \s\t]+yes/ { print $2 }')
         fi
-        echo -n " detected ${removables[@]}"
+        echo -n " detected ${removables[*]}"
         if [[ ${#removables[@]} -gt 1 ]]; then
                   echo
                   echo "Error: more than one removable device detected."
