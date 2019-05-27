@@ -112,7 +112,8 @@ if [[ ! -n $platform_url ]]; then
     host=https://us-east.manta.joyent.com
     latest_path="${host}$(_curl "$host/Joyent_Dev/public/SmartOS/latest")"
     version="$(expr "$latest_path" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
-    platform_url="$latest_path/platform-$version.tgz"
+    header="$(expr "$version" : '\([0-9]\{8\}\)T.*')"
+    platform_url="$latest_path/platform-release-$header-$version.tgz"
     if [[ ! -n $md5sums_url ]]; then
         md5sums_url="$latest_path/md5sums.txt"
     fi
@@ -120,7 +121,7 @@ else
     version="$(expr "$platform_url" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
 fi
 
-platform_file="platform-$version.tgz"
+platform_file="platform-release-$header-$version.tgz"
 platform_dir="platform-$version"
 
 IFS=_ read brand kernel < <(uname -v)
