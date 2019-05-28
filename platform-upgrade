@@ -205,7 +205,7 @@ else
 fi
 
 echo -n "Updating platform on boot device..."
-if ! rsync -a "$platform_dir/" usb/platform.new/ ; then
+if ! rsync -rltD "$platform_dir/" usb/platform.new/ ; then
         echo " failed"
         exit -1
 else
