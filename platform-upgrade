@@ -170,19 +170,37 @@ fi
 
 echo -n "Checking current boot device..."
 if [[ -z $1 ]] ; then
-        removables=($(diskinfo -pH | awk '/^USB/ { print $2 }'))
-        if [[ ${#removables[@]} -eq 0 ]]; then
-                 removables=($(diskinfo -pH | awk '/^USB|^SCSI.*[0-9]+[ \s\t]+yes/ { print $2 }'))
-        fi
+        removables=($(diskinfo -cH | \
+                      awk 'BEGIN { FS="\t" } $7~/\?\?R./ { print $2 }'))
         echo -n " detected ${removables[@]}"
-        if [[ ${#removables[@]} -gt 1 ]]; then
-                  echo
-                  echo "Error: more than one removable device detected."
-                  diskinfo | awk 'NR == 1 || /^USB/ { print }'
-                  echo "Specify correct device on the command line."
-                  exit -1
+        if [[ ${#removables[@]} -eq 0 ]]; then
+                echo
+                echo "Error: Unable to detect removable device."
+                diskinfo
+                echo "Specify correct device on the command line."
+                exit -1
+        elif [[ ${#removables[@]} -gt 1 ]]; then
+                echo
+                echo "Error: more than one removable device detected."
+                diskinfo -cH | awk 'BEGIN { FS="\t" } $7~/\?\?R./ { print }'
+                echo "Specify correct device on the command line."
+                exit -1
         fi
-        usb="/dev/dsk/${removables[0]}p1"
+        # Look for a GPT/EFI VTOC; if there isn't one, then this is almost
+        # certainly an MBR-partitioned device. If it's a GPT label, then we
+        # want the slice that's of type 2 (ROOT).
+        if [[ -e "/dev/dsk/${removables[0]}" ]]; then
+                partition=$(/usr/sbin/prtvtoc -h "/dev/dsk/${removables[0]}" | \
+                            awk ' $2 == 2 { print $1 }')
+                if [[ $? -eq 0 && -n "$partition" ]]; then
+                        echo -n ", GPT label"
+                        usb="/dev/dsk/${removables[0]}s${partition}"
+                fi
+        fi
+        if [[ -z "$usb" ]]; then
+                echo -n ", MBR label"
+                usb="/dev/dsk/${removables[0]}p1"
+        fi
 else
         usb="$1"
         echo -n " using $usb"
