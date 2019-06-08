@@ -112,7 +112,7 @@ if [[ ! -n $platform_url ]]; then
     host=https://us-east.manta.joyent.com
     latest_path="${host}$(_curl "$host/Joyent_Dev/public/SmartOS/latest")"
     version="$(expr "$latest_path" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')
-    latest_spec_path="${host}$(_curl "$host/Joyent_Dev/public/SmartOS/$version")"
+    latest_spec_path="$(_curl "$host/Joyent_Dev/public/SmartOS/$version")"
     header="$(expr "$latest_spec_path" : '.*platform-release-\([0-9]\{8\}\)-.*')"
     platform_url="$latest_path/platform-release-$header-$version.tgz"
     if [[ ! -n $md5sums_url ]]; then
