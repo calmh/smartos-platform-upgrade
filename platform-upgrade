@@ -119,6 +119,7 @@ if [[ ! -n $platform_url ]]; then
         md5sums_url="$latest_path/md5sums.txt"
     fi
 else
+    header="$(expr "$platform_url" : '.*platform-release-\([0-9]\{8\}\)-.*')"
     version="$(expr "$platform_url" : '.*\([0-9]\{8\}T[0-9]\{6\}Z\).*')"
 fi
 
@@ -134,7 +135,7 @@ fi
 tmp=$(mktemp -d)
 cd "$tmp" || exit -1
 
-echo -n "Downloading latest platform ($platform_file)..."
+echo -n "Downloading $platform_file..."
 if ! _curl -o "$platform_file" "$platform_url" ; then
         echo " failed"
         exit -1
